@@ -14,15 +14,22 @@ const toggleMachine = createMachine({
   },
 });
 
+// Created per Stakeholder
 const machine = createMachine(
   {
     id: "Stock Machine",
+    context: {
+      stock: 0,
+    },
     initial: "Exercised",
     states: {
       Exercised: {
         on: {
           StockIssuance: {
             target: "Issued",
+            value: {
+              stock: 100, // it would be a dynamic input
+            },
           },
         },
       },
@@ -31,12 +38,18 @@ const machine = createMachine(
           StockAcceptance: {
             target: "Accepted",
           },
+          StockCancellation: {
+            target: "Cancelled",
+            actions: ["unissueStock"],
+          },
         },
       },
       Accepted: {
         on: {
-          StockTransfer: {
-            target: "Transferred",
+          StockTransfer: "Transferred",
+          StockCancellation: {
+            target: "Cancelled",
+            actions: ["unissueStock"],
           },
         },
       },
@@ -46,7 +59,13 @@ const machine = createMachine(
     preserveActionOrder: true,
   },
   {
-    actions: {},
+    actions: {
+      unissueStock: (context, event) => {
+        console.log("unissueStock");
+        // reset state
+        context.stock = 0;
+      },
+    },
     services: {},
     guards: {},
     delays: {},
