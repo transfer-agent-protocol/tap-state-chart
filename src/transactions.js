@@ -1,10 +1,4 @@
-import { v4 as uuid } from "uuid";
-
-const testSecurityId = "7c542651-7b06-4133-9f93-7e6236fa42f1";
 export const stockIssuanceData = {
-  security_id: testSecurityId,
-  stakeholder_id: "7c542651-7b06-4133-9f93-7e6236fa42f1",
-  stock_class_id: "aa225a44-a481-4b43-8ac7-f3ae9b41e140",
   share_price: {
     currency: "USD",
     amount: "1.20",
@@ -27,6 +21,12 @@ export const stockIssuanceData = {
 };
 
 export const stockAcceptanceData = {
-  security_id: testSecurityId,
   comments: [],
+};
+
+// quantity id added in App
+export const stockCancellationData = {
+  comments: [],
+  balance_security_id: "", // this will be determined in the machine based on the quantity
+  reason_text: "because he died, Rebecca.",
 };
