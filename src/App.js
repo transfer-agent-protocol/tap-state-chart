@@ -1,15 +1,23 @@
 import { useMachine } from "@xstate/react";
-import { parentMachine, stockMachine } from "./stockMachineInstances";
-import { v4 as uuid } from "uuid";
 import { useState } from "react";
+import { parentMachine } from "./parentMachine";
 import {
-  stockIssuanceData,
   stockAcceptanceData,
   stockCancellationData,
+  stockIssuanceData,
 } from "./transactions";
 
-const Toggler = () => {
-  const [state, send] = useMachine(parentMachine);
+import { inspect } from "@xstate/inspect";
+
+inspect({
+  iframe: false, // recommended setting for local development
+});
+
+// Call this before any machines are interpreted
+const App = () => {
+  const [state, send] = useMachine(parentMachine, {
+    devTools: true,
+  });
 
   const [quantity, setQuantity] = useState("");
   const [security_id, setSecurityId] = useState("");
@@ -53,10 +61,12 @@ const Toggler = () => {
         ></input>
         <button
           onClick={() =>
-            send([
-              { type: "CREATE_CHILD", id: security_id },
-              {
-                type: "TX_STOCK_ISSUANCE",
+            send({
+              type: "TX_STOCK_ISSUANCE",
+              id: security_id,
+              value: {
+                activePositions: {},
+                activeSecurityIdsByStockClass: {},
                 value: {
                   ...stockIssuanceData,
                   security_id,
@@ -64,9 +74,8 @@ const Toggler = () => {
                   quantity,
                   stock_class_id,
                 },
-                to: security_id,
               },
-            ])
+            })
           }
         >
           Issue
@@ -81,6 +90,7 @@ const Toggler = () => {
                 ...stockAcceptanceData,
                 stock_class_id,
               },
+              to: security_id,
             })
           }
         >
@@ -106,4 +116,4 @@ const Toggler = () => {
   );
 };
 
-export default Toggler;
+export default App;
