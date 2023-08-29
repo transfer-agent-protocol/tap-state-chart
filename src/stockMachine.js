@@ -1,66 +1,28 @@
-import { createMachine, actions } from "xstate";
-import { v4 as uuid } from "uuid";
+import { createMachine, assign, actions } from "xstate";
+const { sendParent } = actions;
 
-const { sendTo, raise } = actions;
-
-const updateContext = (
-  context,
-  { stakeholder_id, stock_class_id, security_id, quantity, share_price }
-) => {
-  // if active position is empty for this stakeholder, create it
-  if (!context.activePositions[stakeholder_id]) {
-    context.activePositions[stakeholder_id] = {};
-  }
-  context.activePositions[stakeholder_id][security_id] = {
-    stock_class_id,
-    quantity,
-    share_price,
-    timestamp: new Date().toISOString(),
-    accepted: false,
-  };
-
-  if (!context.activeSecurityIdsByStockClass[stakeholder_id]) {
-    context.activeSecurityIdsByStockClass[stakeholder_id] = {};
-  }
-
-  if (!context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id]) {
-    context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id] = [];
-  }
-
-  context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id].push(
-    security_id
-  );
-};
-
-// TODO: what should the "resting state" be?
 export const stockMachine = createMachine(
   {
-    /** @xstate-layout N4IgpgJg5mDOIC5QGUAuB7AxgawAQFkBDTACwEsA7MAOgFUKzZYBXSAYjS2wEknnCKmMAG0ADAF1EoAA7pYZVGXQUpIAB6IAjABYArNQCcAJgAcmzQHYD2ixaMA2ewBoQAT0RHNB6ie2iTFgDMgSYGgUY2FgC+US6cOATE5FTUvCzs8dgAgphC0qgCQmKSSCCy8orKqhoI2iHUfia6IcFmuhEu7ghGptQWmvYmgboGBqL2uha6MXEYCUSklDRprBAcc9gAwoVgADa7hJUUxarlCkoqpTUhJtS65iN2muOB1p2I2qGGmsOmVj86TTTWIgTKJRYpHJ5VAZDYrHYnUpnI7VD5DBr2HpGKYGXSibQ2bTvBB2aiBCZ6US6XRDayvGagjbg5I0KFgfKwrgAFQATgJYAAzMA8xEyOTnKpXRAWezeUz3bRGcLUoluLT1US2AxmH6BfG6PQMsELFnUNkctaZbaCPYHI6isrilFSkmaIx9XQTCz+US-GXE4beQNhA20gk2I1Mk1LajWoT7dgAJTgYFQDuRF1RCAG2ga7WxRnxoXxBgsxM9twN3sCVlxdR6MRBFHQEDgqmNSSWpydmZdAFp7j5ZXYwsMfqI3mqEH2gdQfnpmr7NUZmqZI1xmTH6Ix0hBuxVe6Aan3AkPS0ZR-c9dZNMSlaI7lTjJ4DJZRCuTOv5p2UitIPuJUuI9EGCB97CBTFmjCAJAh+O9FTuewLDqGlQnCSIvzwaNIVydkYT3JEe0lYCSW0TRqBXHRtHsPRS2sXQ709ahxipIYVS8d97EwzcUjjW1-0Ig9iPURATFlPpRgBaiizMctPCHcDCVMbFtEbKIgA */
-    id: "Stock Machine",
-    initial: "Unissued",
+    /** @xstate-layout N4IgpgJg5mDOIC5SzAYwLQEsLoIwDoBJWWAV0gGIAVADQH0BlKgeQGEBpOgQVdYFEAClS4A5fgG0ADAF1EoAA4B7WJgAumRQDs5IAB6IAzACYArPgAsADgBskgwHYj96+YMuDAGhABPRLkv2+ACcBkGWJkEmRqFB5iEAvvFeKBjYeEQk5BDU9ExsnKyi-AAyxVxUhMwiUrJIIEoq6lo6+gjGZla2Dk7u7l6+CEaxFpKSJia4ofYBlm6JyWhYOARcqKhg8qqUtIwsHHRUAEqiDABifIc1Og1qGtp1rW6WI5KT9rgmkkbWbv2IlgRzPYgrhrM5PrhIeYTPMQCklulVutNttcnsCkU+KVypVqjJrspbs0Hoh7CZAkF7JJYlExhMjLg-gggpJ8AYTOZTLNXEY7NNYfC0gRWABDTTrAA2Esop0IIkIDAAElc6jcmvdQK1ISF8KZJED9eTcNSTEzcEZzPhXuTJNNJJYwrhXIkkiBNIoIHAdILlgTGncWoh0NYmcGBYshRkyJA-USNXpEJymUFrPhrBNwpZvmSDM7XT7EWsNlsILH1YGENZecEfrh7M4hm5-GbQRYIgZjLz7dZwkZw6llvhReKwFKY6rCeWSQhjSYDBYrPbxiZLK4yWaLfgIZIe3P9f5rNZ+wiCAARLRgMsB6eTVuvaY9i0MjlGDfz40OKvm6KxOIu+JAA */
+    id: "sec-id-1",
+    initial: "Issued",
     context: {
+      value: {},
       activePositions: {},
       activeSecurityIdsByStockClass: {},
     },
     predictableActionArguments: true,
     preserveActionOrder: true,
     states: {
-      Unissued: {
-        on: {
-          StockIssuance: {
-            target: "Issued",
-            actions: ["issue"],
-          },
-        },
-      },
       Issued: {
+        entry: ["issue", "sendBackToParent"],
         on: {
           // not allowing more issuance until first position is accepted
-          StockAcceptance: {
+          TX_STOCK_ACCEPTANCE: {
             target: "Accepted",
-            actions: ["accept"],
+            actions: ["accept", "sendBackToParent"],
           },
-          StockCancellation: {
+          TX_STOCK_CANCELLATION: {
             target: "Cancelled",
             actions: ["cancel"],
           },
@@ -68,27 +30,18 @@ export const stockMachine = createMachine(
       },
       Accepted: {
         on: {
-          StockIssuance: {
-            target: "Issued",
-            actions: ["issue"],
-          },
-          StockTransfer: {
+          TX_STOCK_TRANSFER: {
             target: "Issued",
             actions: ["transfer"],
           },
-          StockCancellation: {
+          TX_STOCK_CANCELLATION: {
             target: "Cancelled",
             actions: ["cancel"],
           },
         },
       },
       Cancelled: {
-        entry: raise({ type: "Reset" }), // hacky: since the cancel action is happening on a transition, it immediately resets when entering the cancel state.
-        on: {
-          Reset: {
-            target: "Unissued",
-          },
-        },
+        type: "final",
       },
     },
   },
@@ -131,11 +84,11 @@ export const stockMachine = createMachine(
               ];
             }
 
-            updateContext(context, {
-              ...event.value,
-              security_id: "UPDATED_SECURITY_ID",
-              quantity: remainingQuantity,
-            });
+            // updateContext(context, {
+            //   ...event.value,
+            //   security_id: "UPDATED_SECURITY_ID",
+            //   quantity: remainingQuantity,
+            // });
             break;
           }
         }
@@ -162,19 +115,64 @@ export const stockMachine = createMachine(
 
           delete context.activePositions[stakeholder_id][security_id];
           // now we move to the new issuance
-          updateContext(context, {
-            ...event.value,
-            security_id: "UPDATED_SECURITY_ID",
-            quantity: remainingQuantity,
-            stock_class_id: activePosition.stock_class_id,
-          });
+          // updateContext(context, {
+          //   ...event.value,
+          //   security_id: "UPDATED_SECURITY_ID",
+          //   quantity: remainingQuantity,
+          //   stock_class_id: activePosition.stock_class_id,
+          // });
         } else {
           throw new Error(
             "cannot cancel more than quantity of the active position"
           );
         }
       },
-      issue: (context, event) => updateContext(context, event.value),
+      issue: (context, event) => {
+        console.log("context ", context);
+        console.log("event", event);
+        const {
+          stakeholder_id,
+          stock_class_id,
+          security_id,
+          quantity,
+          share_price,
+        } = context.value;
+
+        //Update Active Positions
+        // if active position is empty for this stakeholder, create it
+        if (!context.activePositions[stakeholder_id]) {
+          context.activePositions[stakeholder_id] = {};
+        }
+        context.activePositions[stakeholder_id][security_id] = {
+          stock_class_id,
+          quantity,
+          share_price,
+          timestamp: new Date().toISOString(),
+          accepted: false,
+        };
+
+        // Update Security ID indexer
+        if (!context.activeSecurityIdsByStockClass[stakeholder_id]) {
+          context.activeSecurityIdsByStockClass[stakeholder_id] = {};
+        }
+
+        if (
+          !context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id]
+        ) {
+          context.activeSecurityIdsByStockClass[stakeholder_id][
+            stock_class_id
+          ] = [];
+        }
+
+        context.activeSecurityIdsByStockClass[stakeholder_id][
+          stock_class_id
+        ].push(security_id);
+        console.log("before calling parent", context);
+
+        // sendParent((context, event) => ({
+        //   type: "UPDATE_CONTEXT",
+        // }));
+      },
       accept: (context, event) => {
         console.log("Accept Action ", event);
         const { security_id, stakeholder_id } = event.value;
@@ -187,9 +185,53 @@ export const stockMachine = createMachine(
           activePosition.accepted = true;
         }
       },
+      sendBackToParent: sendParent((context, event) => ({
+        type: "UPDATE_CONTEXT",
+        value: {
+          activePositions: context.activePositions,
+          activeSecurityIdsByStockClass: context.activeSecurityIdsByStockClass,
+        },
+      })),
     },
     services: {},
     guards: {},
     delays: {},
   }
 );
+
+// const updateContext = (
+//   context,
+//   value // { stakeholder_id, stock_class_id, security_id, quantity, share_price }
+// ) => {
+//   console.log("Updating Parent Context", context);
+//   const { stakeholder_id, stock_class_id, security_id, quantity, share_price } =
+//     context.value;
+
+//   //Update Active Positions
+//   // if active position is empty for this stakeholder, create it
+//   if (!context.activePositions[stakeholder_id]) {
+//     context.activePositions[stakeholder_id] = {};
+//   }
+//   context.activePositions[stakeholder_id][security_id] = {
+//     stock_class_id,
+//     quantity,
+//     share_price,
+//     timestamp: new Date().toISOString(),
+//     accepted: false,
+//   };
+
+//   // Update Security ID indexer
+//   if (!context.activeSecurityIdsByStockClass[stakeholder_id]) {
+//     context.activeSecurityIdsByStockClass[stakeholder_id] = {};
+//   }
+
+//   if (!context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id]) {
+//     context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id] = [];
+//   }
+
+//   context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id].push(
+//     security_id
+//   );
+//   console.log("before calling parent");
+//   // Send data to parent
+// };
