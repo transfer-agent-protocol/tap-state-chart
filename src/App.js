@@ -1,5 +1,6 @@
 import { useMachine } from "@xstate/react";
-import { stockMachine } from "./stockMachine";
+import { parentMachine, stockMachine } from "./stockMachineInstances";
+import { v4 as uuid } from "uuid";
 import { useState } from "react";
 import {
   stockIssuanceData,
@@ -8,7 +9,8 @@ import {
 } from "./transactions";
 
 const Toggler = () => {
-  const [state, send] = useMachine(stockMachine);
+  const [state, send] = useMachine(parentMachine);
+
   const [quantity, setQuantity] = useState("");
   const [security_id, setSecurityId] = useState("");
   const [stakeholder_id, setStakeholderId] = useState("");
@@ -23,7 +25,11 @@ const Toggler = () => {
         <pre>{JSON.stringify(state.context, null, 4)}</pre>
       </div>
 
-      <div>Current State: {state.value}</div>
+      <div>Current State of Parent: {state.value}</div>
+      {state.context.childInstances.length && (
+        <div>Current State of Child: {}</div>
+      )}
+
       <div>
         <input
           value={quantity}
@@ -47,16 +53,20 @@ const Toggler = () => {
         ></input>
         <button
           onClick={() =>
-            send({
-              type: "StockIssuance",
-              value: {
-                ...stockIssuanceData,
-                security_id,
-                stakeholder_id,
-                quantity,
-                stock_class_id,
+            send([
+              { type: "CREATE_CHILD", id: security_id },
+              {
+                type: "TX_STOCK_ISSUANCE",
+                value: {
+                  ...stockIssuanceData,
+                  security_id,
+                  stakeholder_id,
+                  quantity,
+                  stock_class_id,
+                },
+                to: security_id,
               },
-            })
+            ])
           }
         >
           Issue
@@ -64,7 +74,7 @@ const Toggler = () => {
         <button
           onClick={() =>
             send({
-              type: "StockAcceptance",
+              type: "TX_STOCK_ACCEPTANCE",
               value: {
                 security_id,
                 stakeholder_id,
@@ -79,7 +89,7 @@ const Toggler = () => {
         <button
           onClick={() =>
             send({
-              type: "StockCancellation",
+              type: "TX_STOCK_CANCELLATION",
               value: {
                 ...stockCancellationData,
                 security_id,

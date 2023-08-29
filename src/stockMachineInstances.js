@@ -1,42 +1,16 @@
 import { createMachine, actions } from "xstate";
 import { v4 as uuid } from "uuid";
-
-const { sendTo, raise } = actions;
-
-const updateContext = (
-  context,
-  { stakeholder_id, stock_class_id, security_id, quantity, share_price }
-) => {
-  // if active position is empty for this stakeholder, create it
-  if (!context.activePositions[stakeholder_id]) {
-    context.activePositions[stakeholder_id] = {};
-  }
-  context.activePositions[stakeholder_id][security_id] = {
-    stock_class_id,
-    quantity,
-    share_price,
-    timestamp: new Date().toISOString(),
-    accepted: false,
-  };
-
-  if (!context.activeSecurityIdsByStockClass[stakeholder_id]) {
-    context.activeSecurityIdsByStockClass[stakeholder_id] = {};
-  }
-
-  if (!context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id]) {
-    context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id] = [];
-  }
-
-  context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id].push(
-    security_id
-  );
-};
+const { send, assign, sendTo, sendParent, raise } = actions;
 
 // TODO: what should the "resting state" be?
+// we need a Finished state when
+// cancelled
+// transferred
+
 export const stockMachine = createMachine(
   {
-    /** @xstate-layout N4IgpgJg5mDOIC5QGUAuB7AxgawAQFkBDTACwEsA7MAOgFUKzZYBXSAYjS2wEknnCKmMAG0ADAF1EoAA7pYZVGXQUpIAB6IAjABYArNQCcAJgAcmzQHYD2ixaMA2ewBoQAT0RHNB6ie2iTFgDMgSYGgUY2FgC+US6cOATE5FTUvCzs8dgAgphC0qgCQmKSSCCy8orKqhoI2iHUfia6IcFmuhEu7ghGptQWmvYmgboGBqL2uha6MXEYCUSklDRprBAcc9gAwoVgADa7hJUUxarlCkoqpTUhJtS65iN2muOB1p2I2qGGmsOmVj86TTTWIgTKJRYpHJ5VAZDYrHYnUpnI7VD5DBr2HpGKYGXSibQ2bTvBB2aiBCZ6US6XRDayvGagjbg5I0KFgfKwrgAFQATgJYAAzMA8xEyOTnKpXRAWezeUz3bRGcLUoluLT1US2AxmH6BfG6PQMsELFnUNkctaZbaCPYHI6isrilFSkmaIx9XQTCz+US-GXE4beQNhA20gk2I1Mk1LajWoT7dgAJTgYFQDuRF1RCAG2ga7WxRnxoXxBgsxM9twN3sCVlxdR6MRBFHQEDgqmNSSWpydmZdAFp7j5ZXYwsMfqI3mqEH2gdQfnpmr7NUZmqZI1xmTH6Ix0hBuxVe6Aan3AkPS0ZR-c9dZNMSlaI7lTjJ4DJZRCuTOv5p2UitIPuJUuI9EGCB97CBTFmjCAJAh+O9FTuewLDqGlQnCSIvzwaNIVydkYT3JEe0lYCSW0TRqBXHRtHsPRS2sXQ709ahxipIYVS8d97EwzcUjjW1-0Ig9iPURATFlPpRgBaiizMctPCHcDCVMbFtEbKIgA */
-    id: "Stock Machine",
+    /** @xstate-layout N4IgpgJg5mDOIC5QAoC2BDAxgCwJYDswBKAOgFV9dZYBXSAYgBUANAfQGVGB5AYQGlWASXbsyAQQByPAKIBtAAwBdRKAAOAe1i4ALrnX4VIAB6IAjAA5TJUwFYAbACYb8p-MfyXAGhABPRABY7GxIAZlMHfwBOB3NI2wjIgF9E7zQsPEJSQWo6CCY2Tl4BMR4ZAAVGSRkFZSQQDS1dfUMTBBsbEJJzf38bcxsAdliByIGbbz8ECztQhwdTSMD-eQXIm2TUjBwCYhJs2gYWDm5+Vh4q6QAZS7FGQS4JGsMGnT0DOtb-WxIOjpc5kLtfwDCaIAaOLpfUxBAa9GyReQhDYgNLbTIkMSYTBgVTaQ4FE4CYSiC5POovJrvUCtewzDqRcyMuymELRUz+UEIXqdcEJSIhQGmAYrZGojK7THY3H445FViMABKknYADFpAqyWpNK9mh9EPZgoyQnZWR1-CEInZOWF5CQBgMQv5LIyBhZYaKtuLSJKcXi8kdCqdzlIrjc7g9NfVtZSWmCHJ1AmEOsKbFFzFbfIgYSR5EMWWMVqnjR70jtSDx0PhsQAbasMFWCCTCAASkYpb1jCH5M2B-njIX6HjmHMzCCGwXs9uHY1h0OSKRA+HUEDghjFZee0Y7eoQAFpOt0QmMQi4vpY7PJIpyGV05gsBg4GayXKYS2jdhQqAcIJvGtvqQE-jWPYlqjH0FispyTrmD8z42I+6Z2GMdj+G+Xp7DkkC-jqVLGIBtoCgypiXg4l7RCEUGMrBCLwQydhIfYqELuu6I+tKP7kluuoAQg5gODMowOnxMT0vGlEwfS8i0YhyFMZspbohWVZgLWWGcX+3F4bxKxdMRJqkemazmBRo7jj8SEPhEM5fHYaFliQAAi+hgNhMY7sRIyhKY0Kpoi8GkSCpndF59oeOmA52JEtnzkAA */
+    id: `Stock Machine`,
     initial: "Unissued",
     context: {
       activePositions: {},
@@ -47,7 +21,7 @@ export const stockMachine = createMachine(
     states: {
       Unissued: {
         on: {
-          StockIssuance: {
+          TX_STOCK_ISSUANCE: {
             target: "Issued",
             actions: ["issue"],
           },
@@ -56,11 +30,11 @@ export const stockMachine = createMachine(
       Issued: {
         on: {
           // not allowing more issuance until first position is accepted
-          StockAcceptance: {
+          TX_STOCK_ACCEPTANCE: {
             target: "Accepted",
             actions: ["accept"],
           },
-          StockCancellation: {
+          TX_STOCK_CANCELLATION: {
             target: "Cancelled",
             actions: ["cancel"],
           },
@@ -68,27 +42,29 @@ export const stockMachine = createMachine(
       },
       Accepted: {
         on: {
-          StockIssuance: {
+          TX_STOCK_ISSUANCE: {
             target: "Issued",
             actions: ["issue"],
           },
-          StockTransfer: {
+          TX_STOCK_TRANSFER: {
             target: "Issued",
             actions: ["transfer"],
           },
-          StockCancellation: {
+          TX_STOCK_CANCELLATION: {
             target: "Cancelled",
             actions: ["cancel"],
           },
         },
       },
       Cancelled: {
-        entry: raise({ type: "Reset" }), // hacky: since the cancel action is happening on a transition, it immediately resets when entering the cancel state.
         on: {
-          Reset: {
-            target: "Unissued",
+          FINISH: {
+            target: "Done",
           },
         },
+      },
+      Done: {
+        type: "final",
       },
     },
   },
@@ -193,3 +169,83 @@ export const stockMachine = createMachine(
     delays: {},
   }
 );
+
+export const parentMachine = createMachine({
+  /** @xstate-layout N4IgpgJg5mDOIC5QAUCGAnMA7ALgOgEsIAbMAYggHssxCsA3Sga1th0oGMmBZVDgCwI0AkljaosHMAG0ADAF1EoAA6VYBHAWpKQAD0QAWAEwAaEAE9EARgDsNvAYCsAZlkGAHAdlGrsgGyeAL6BZmiYuIQk5ADKACoAggBKsQD6wtHRAKrxAHIAwgCicopIIKrqmtql+ggBeM42jrLesu5W7rI2nmaWCG14Tc2yAJxNzsOd7cEhIFiUEHA6Ydg4OuUaWlg6NQC0fj2Ie8GhGCuRpGtqG1WgNf1Gjl2+zlZGnn6PBwhGRsN4o64PjZvON3MNnNNAkA */
+  id: "Parent",
+  initial: "ready",
+  // aggregating all of the children
+  context: {
+    childInstances: [],
+    activePositions: {},
+    activeSecurityIdsByStockClass: {},
+  },
+  states: {
+    ready: {
+      on: {
+        CREATE_CHILD: {
+          actions: assign({
+            childInstances: (context, event) => [
+              ...context.childInstances,
+              event.id, // child name
+            ],
+          }),
+        },
+        UPDATE_CONTEXT: assign((context, event) => ({
+          activePositions: {
+            ...event.activePositions,
+            ...context.activePositions,
+          },
+          activeSecurityIdsByStockClass: {
+            ...event.activeSecurityIdsByStockClass,
+            ...context.activeSecurityIdsByStockClass,
+          },
+        })),
+      },
+
+      invoke: {
+        src: (context, event) => stockMachine, // The child machine
+        id: (context, event) => event.id, // Use the event's ID as the service ID
+      },
+    },
+  },
+});
+
+const updateContext = (
+  context,
+  { stakeholder_id, stock_class_id, security_id, quantity, share_price }
+) => {
+  console.log("Updating Parent Context");
+  // Update Active Positions
+  // if active position is empty for this stakeholder, create it
+  if (!context.activePositions[stakeholder_id]) {
+    context.activePositions[stakeholder_id] = {};
+  }
+  context.activePositions[stakeholder_id][security_id] = {
+    stock_class_id,
+    quantity,
+    share_price,
+    timestamp: new Date().toISOString(),
+    accepted: false,
+  };
+
+  // Update Security ID indexer
+  if (!context.activeSecurityIdsByStockClass[stakeholder_id]) {
+    context.activeSecurityIdsByStockClass[stakeholder_id] = {};
+  }
+
+  if (!context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id]) {
+    context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id] = [];
+  }
+
+  context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id].push(
+    security_id
+  );
+
+  // Send data to parent
+  sendParent({
+    type: "UPDATE_CONTEXT",
+    activePositions: context.activePositions,
+    activeSecurityIdsByStockClass: context.activeSecurityIdsByStockClass,
+  });
+};
