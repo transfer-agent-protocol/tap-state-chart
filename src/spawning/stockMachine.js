@@ -42,6 +42,7 @@ export const stockMachine = createMachine(
       },
       Cancelled: {
         type: "final",
+        entry: ["stopChild"],
       },
     },
   },
@@ -89,10 +90,21 @@ export const stockMachine = createMachine(
           }
         }
       },
+      stopChild: sendParent((context, event) => {
+        console.log("stop child event", event);
+        console.log("stop child context", context);
+        return {
+          type: "STOP_CHILD",
+          value: {
+            security_id: event.security_id,
+            stakeholder_id: event.stakeholder_id,
+            remainingQuantity: context.activePositions[event.stakeholder_id][event.security_id].quantity - event.quantity,
+            stock_class_id: context.activePositions[event.stakeholder_id][event.security_id].stock_class_id,
+          },
+        };
+      }),
       cancel: (context, event, meta) => {
-        console.log("Cancel Action", event);
-
-        const { quantity, stakeholder_id, security_id } = event.value;
+        const { quantity, stakeholder_id, security_id } = event;
 
         const activePosition = context.activePositions[stakeholder_id][security_id];
 
@@ -102,58 +114,13 @@ export const stockMachine = createMachine(
 
         if (quantity === activePosition.quantity) {
           console.log("complete cancellation");
-          delete context.activePositions[stakeholder_id][security_id];
         } else if (quantity < activePosition.quantity) {
           console.log("partial cancellation");
-          const remainingQuantity = activePosition.quantity - quantity;
-          console.log("remainingQuantity", remainingQuantity);
-
-          delete context.activePositions[stakeholder_id][security_id];
-          // now we move to the new issuance
-          // updateContext(context, {
-          //   ...event.value,
-          //   security_id: "UPDATED_SECURITY_ID",
-          //   quantity: remainingQuantity,
-          //   stock_class_id: activePosition.stock_class_id,
-          // });
         } else {
           throw new Error("cannot cancel more than quantity of the active position");
         }
       },
-      issue: (context, event) => {
-        console.log("context ", context);
-        console.log("event", event);
-        const { stakeholder_id, stock_class_id, security_id, quantity, share_price } = context.value;
-
-        //Update Active Positions
-        // if active position is empty for this stakeholder, create it
-        if (!context.activePositions[stakeholder_id]) {
-          context.activePositions[stakeholder_id] = {};
-        }
-        context.activePositions[stakeholder_id][security_id] = {
-          stock_class_id,
-          quantity,
-          share_price,
-          timestamp: new Date().toISOString(),
-          accepted: false,
-        };
-
-        // Update Security ID indexer
-        if (!context.activeSecurityIdsByStockClass[stakeholder_id]) {
-          context.activeSecurityIdsByStockClass[stakeholder_id] = {};
-        }
-
-        if (!context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id]) {
-          context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id] = [];
-        }
-
-        context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id].push(security_id);
-        console.log("before calling parent", context);
-
-        // sendParent((context, event) => ({
-        //   type: "UPDATE_CONTEXT",
-        // }));
-      },
+      issue: (context, event) => updateContext(context, event.value),
       accept: (context, event) => {
         console.log("why no acceptance");
         console.log("Accept event ", event);
@@ -181,39 +148,35 @@ export const stockMachine = createMachine(
   }
 );
 
-// const updateContext = (
-//   context,
-//   value // { stakeholder_id, stock_class_id, security_id, quantity, share_price }
-// ) => {
-//   console.log("Updating Parent Context", context);
-//   const { stakeholder_id, stock_class_id, security_id, quantity, share_price } =
-//     context.value;
+const updateContext = (
+  context,
+  value // { stakeholder_id, stock_class_id, security_id, quantity, share_price }
+) => {
+  console.log("context ", context);
+  const { stakeholder_id, stock_class_id, security_id, quantity, share_price } = context.value;
 
-//   //Update Active Positions
-//   // if active position is empty for this stakeholder, create it
-//   if (!context.activePositions[stakeholder_id]) {
-//     context.activePositions[stakeholder_id] = {};
-//   }
-//   context.activePositions[stakeholder_id][security_id] = {
-//     stock_class_id,
-//     quantity,
-//     share_price,
-//     timestamp: new Date().toISOString(),
-//     accepted: false,
-//   };
+  //Update Active Positions
+  // if active position is empty for this stakeholder, create it
+  if (!context.activePositions[stakeholder_id]) {
+    context.activePositions[stakeholder_id] = {};
+  }
+  context.activePositions[stakeholder_id][security_id] = {
+    stock_class_id,
+    quantity,
+    share_price,
+    timestamp: new Date().toISOString(),
+    accepted: false,
+  };
 
-//   // Update Security ID indexer
-//   if (!context.activeSecurityIdsByStockClass[stakeholder_id]) {
-//     context.activeSecurityIdsByStockClass[stakeholder_id] = {};
-//   }
+  // Update Security ID indexer
+  if (!context.activeSecurityIdsByStockClass[stakeholder_id]) {
+    context.activeSecurityIdsByStockClass[stakeholder_id] = {};
+  }
 
-//   if (!context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id]) {
-//     context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id] = [];
-//   }
+  if (!context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id]) {
+    context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id] = [];
+  }
 
-//   context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id].push(
-//     security_id
-//   );
-//   console.log("before calling parent");
-//   // Send data to parent
-// };
+  context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id].push(security_id);
+  console.log("before calling parent", context);
+};

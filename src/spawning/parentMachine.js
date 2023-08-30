@@ -1,4 +1,5 @@
-import { createMachine, spawn, actions } from "xstate";
+import { v4 as uuid } from "uuid";
+import { actions, createMachine, spawn, stop } from "xstate";
 import { stockMachine } from "./stockMachine";
 const { assign } = actions;
 
@@ -11,6 +12,8 @@ export const parentMachine = createMachine(
       activePositions: {},
       activeSecurityIdsByStockClass: {},
     },
+    predictableActionArguments: true,
+    preserveActionOrder: true,
     states: {
       ready: {
         on: {
@@ -19,6 +22,9 @@ export const parentMachine = createMachine(
           },
           UPDATE_CONTEXT: {
             actions: "updateParentContext",
+          },
+          STOP_CHILD: {
+            actions: ["stopChild"],
           },
         },
       },
@@ -36,7 +42,6 @@ export const parentMachine = createMachine(
           },
         };
       }),
-      // TODO: this spread operator isn't working
       updateParentContext: assign({
         activePositions: (context, event) => {
           console.log("context to update parent ", context, "and event ", event);
@@ -87,6 +92,36 @@ export const parentMachine = createMachine(
 
           return updatedSecurityIdsByStockClass;
         },
+      }),
+      stopChild: assign((context, event) => {
+        const { security_id, stakeholder_id, remainingQuantity, stock_class_id } = event.value;
+
+        if (remainingQuantity) {
+          console.log("remainingQuantity", remainingQuantity);
+          const newSecurityId = uuid().toString().slice(0, 4);
+          const newActivePosition = {
+            activePositions: {},
+            activeSecurityIdsByStockClass: {},
+            value: {
+              ...context.activePositions[stakeholder_id][security_id],
+              quantity: remainingQuantity,
+              security_id: newSecurityId,
+              stakeholder_id,
+            },
+          };
+          console.log("new activePosition ", newActivePosition);
+          const newSecurity = spawn(stockMachine.withContext(newActivePosition), newSecurityId);
+          console.log("here 2");
+          context.securities = {
+            ...context.securities,
+            [newSecurityId]: newSecurity,
+          };
+        }
+
+        stop(security_id);
+        delete context.securities[security_id];
+        delete context.activePositions[stakeholder_id][security_id];
+        delete context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id];
       }),
     },
   }
