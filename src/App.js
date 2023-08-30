@@ -21,13 +21,23 @@ const App = () => {
   const [stakeholder_id, setStakeholderId] = useState("adam-id-1");
   const [stock_class_id, setStockClassId] = useState("common-id-1");
 
-  console.log("state", state);
+  // console.log("state", state);
 
   const handleAcceptance = (securityId, eventData) => {
     const securityActor = state.context.securities[securityId];
     if (securityActor) {
       securityActor.send({
         type: "TX_STOCK_ACCEPTANCE",
+        ...eventData,
+      });
+    }
+  };
+
+  const handleCancellation = (securityId, eventData) => {
+    const securityActor = state.context.securities[securityId];
+    if (securityActor) {
+      securityActor.send({
+        type: "TX_STOCK_CANCELLATION",
         ...eventData,
       });
     }
@@ -85,21 +95,7 @@ const App = () => {
         >
           Accept
         </button>
-        <button
-          onClick={() =>
-            send({
-              type: "TX_STOCK_CANCELLATION",
-              value: {
-                ...stockCancellationData,
-                security_id,
-                stakeholder_id,
-                quantity,
-              },
-            })
-          }
-        >
-          Cancel
-        </button>
+        <button onClick={() => handleCancellation(security_id, { ...stockCancellationData, security_id, stakeholder_id, quantity })}>Cancel</button>
       </div>
     </div>
   );
