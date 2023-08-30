@@ -1,4 +1,4 @@
-import { createMachine, assign, actions } from "xstate";
+import { actions, createMachine } from "xstate";
 const { sendParent } = actions;
 
 export const stockMachine = createMachine(
@@ -174,6 +174,7 @@ export const stockMachine = createMachine(
         // }));
       },
       accept: (context, event) => {
+        console.log("why no acceptance");
         console.log("Accept Action ", event);
         const { security_id, stakeholder_id } = event.value;
         const activePosition =
