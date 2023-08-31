@@ -91,8 +91,6 @@ export const stockMachine = createMachine(
         }
       },
       stopChild: sendParent((context, event) => {
-        console.log("stop child event", event);
-        console.log("stop child context", context);
         return {
           type: "STOP_CHILD",
           value: {
@@ -122,9 +120,6 @@ export const stockMachine = createMachine(
       },
       issue: (context, event) => updateContext(context, event.value),
       accept: (context, event) => {
-        console.log("why no acceptance");
-        console.log("Accept event ", event);
-        console.log("accept context", context);
         const { security_id, stakeholder_id } = event;
         const activePosition = context.activePositions[stakeholder_id][security_id];
         if (!activePosition) {
@@ -148,11 +143,7 @@ export const stockMachine = createMachine(
   }
 );
 
-const updateContext = (
-  context,
-  value // { stakeholder_id, stock_class_id, security_id, quantity, share_price }
-) => {
-  console.log("context ", context);
+const updateContext = (context, _) => {
   const { stakeholder_id, stock_class_id, security_id, quantity, share_price } = context.value;
 
   //Update Active Positions
@@ -178,5 +169,4 @@ const updateContext = (
   }
 
   context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id].push(security_id);
-  console.log("before calling parent", context);
 };
