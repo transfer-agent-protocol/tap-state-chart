@@ -1,7 +1,7 @@
 import { v4 as uuid } from "uuid";
 import { actions, createMachine, spawn, stop } from "xstate";
 import { stockMachine } from "./stockMachine";
-const { assign } = actions;
+const { assign, raise } = actions;
 
 export const parentMachine = createMachine(
   {
@@ -24,8 +24,9 @@ export const parentMachine = createMachine(
             actions: "updateParentContext",
           },
           STOP_CHILD: {
-            actions: ["stopChild"],
+            actions: ["stopChild", "respawnSecurityIfNecessary"],
           },
+          CHILL: {},
         },
       },
     },
@@ -93,35 +94,59 @@ export const parentMachine = createMachine(
           return updatedSecurityIdsByStockClass;
         },
       }),
+      // BUG: in the events tap of the inspector, { TX_STOCK_ISSUANCE } isn't appearing, though logic is working as expected.
+      respawnSecurityIfNecessary: raise((context, event) => {
+        if (!context.isRespawning) {
+          delete context.isRespawning;
+          console.log("no respawning necessary");
+          return { type: "CHILL" };
+        }
+        const { temporaryActivePosition, temporarySecurityId } = context;
+
+        delete context.temporaryActivePosition;
+        delete context.temporarySecurityId;
+        delete context.isRespawning;
+
+        return {
+          type: "TX_STOCK_ISSUANCE",
+          id: temporarySecurityId,
+          value: temporaryActivePosition,
+        };
+      }),
       stopChild: assign((context, event) => {
         const { security_id, stakeholder_id, remainingQuantity, stock_class_id } = event.value;
 
+        // 1. Stop the child machine
+        stop(security_id);
+
+        const currentActivePosition = context.activePositions[stakeholder_id][security_id];
+
+        // 2. delete the child machine from the context
+        delete context.securities[security_id];
+        delete context.activePositions[stakeholder_id][security_id];
+        delete context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id];
+
         if (remainingQuantity) {
+          // 3. Spawn a new child machine if there's remaining quantity
           console.log("remainingQuantity", remainingQuantity);
           const newSecurityId = uuid().toString().slice(0, 4);
           const newActivePosition = {
             activePositions: {},
             activeSecurityIdsByStockClass: {},
             value: {
-              ...context.activePositions[stakeholder_id][security_id],
+              ...currentActivePosition,
               quantity: remainingQuantity,
               security_id: newSecurityId,
               stakeholder_id,
             },
           };
-          console.log("new activePosition ", newActivePosition);
-          const newSecurity = spawn(stockMachine.withContext(newActivePosition), newSecurityId);
-          console.log("here 2");
-          context.securities = {
-            ...context.securities,
-            [newSecurityId]: newSecurity,
-          };
-        }
 
-        stop(security_id);
-        delete context.securities[security_id];
-        delete context.activePositions[stakeholder_id][security_id];
-        delete context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id];
+          context.isRespawning = true;
+          context.temporaryActivePosition = newActivePosition;
+          context.temporarySecurityId = newSecurityId;
+        } else {
+          context.isRespawning = false;
+        }
       }),
     },
   }
