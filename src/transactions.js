@@ -30,3 +30,10 @@ export const stockCancellationData = {
   balance_security_id: "", // this will be determined in the machine based on the quantity
   reason_text: "because he died, Rebecca.",
 };
+
+export const stockTransferData = {
+  comments: [],
+  consideration_text: {},
+  balance_security_id: {},
+  resulting_security_ids: {},
+};
