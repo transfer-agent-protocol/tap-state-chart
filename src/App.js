@@ -34,32 +34,21 @@ const App = () => {
   };
 
   const handleCancellation = (securityId, eventData) => {
-    const securityActor = state.context.securities[securityId];
-    if (securityActor) {
-      securityActor.send({
-        type: "TX_STOCK_CANCELLATION",
-        ...eventData,
-      });
-    }
+    send({
+      type: "PRE_STOCK_CANCELLATION",
+      ...eventData,
+    });
   };
 
-  const handleTransfer = (securityId, eventData) => {
-    const securityActor = state.context.securities[securityId];
-    if (securityActor) {
-      securityActor.send({
-        type: "TX_STOCK_TRANSFER",
-        ...eventData,
-      });
-    }
+  const handleTransfer = (eventData) => {
+    send({
+      type: "PRE_STOCK_TRANSFER",
+      ...eventData,
+    });
   };
 
   return (
     <div>
-      <div>Context:</div>
-      <div>
-        <pre>{JSON.stringify(state.context, null, 4)}</pre>
-      </div>
-
       <div>State of Parent: {state.value}</div>
       {Object.keys(state.context.securities).map((security) => (
         <div key={security}>
@@ -105,10 +94,12 @@ const App = () => {
         >
           Accept
         </button>
-        <button onClick={() => handleCancellation(security_id, { ...stockCancellationData, security_id, stakeholder_id, quantity })}>Cancel</button>
+        <button onClick={() => handleCancellation(security_id, { ...stockCancellationData, security_id, stock_class_id, stakeholder_id, quantity })}>
+          Cancel
+        </button>
         <button
           onClick={() =>
-            handleTransfer(security_id, {
+            handleTransfer({
               ...stockTransferData,
               security_id,
               transferor_id: stakeholder_id,
@@ -121,9 +112,12 @@ const App = () => {
           Transfer
         </button>
       </div>
+      <div>Context:</div>
+      <div>
+        <pre>{JSON.stringify(state.context, null, 4)}</pre>
+      </div>
     </div>
   );
 };
 
 export default App;
-// ask adam for help designing some things tomorrow
