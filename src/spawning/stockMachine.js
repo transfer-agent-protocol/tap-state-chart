@@ -3,7 +3,7 @@ const { sendParent } = actions;
 
 export const stockMachine = createMachine(
   {
-    /** @xstate-layout N4IgpgJg5mDOIC5SzAYwLQEsLoIwDoBJWWAV0gGIAVADQH0BlKgeQGEBpOgQVdYFEAClS4A5fgG0ADAF1EoAA4B7WJgAumRQDs5IAB6IAzACYArPgAsADgBskgwHYj96+YMuDAGhABPRLkv2+ACcBkGWJkEmRqFB5iEAvvFeKBjYeEQk5BDU9ExsnKyi-AAyxVxUhMwiUrJIIEoq6lo6+gjGZla2Dk7u7l6+CEaxFpKSJia4ofYBlm6JyWhYOARcqKhg8qqUtIwsHHRUAEqiDABifIc1Og1qGtp1rW6WI5KT9rgmkkbWbv2IlgRzPYgrhrM5PrhIeYTPMQCklulVutNttcnsCkU+KVypVqjJrspbs0Hoh7CZAkF7JJYlExhMjLg-gggpJ8AYTOZTLNXEY7NNYfC0gRWABDTTrAA2Esop0IIkIDAAElc6jcmvdQK1ISF8KZJED9eTcNSTEzcEZzPhXuTJNNJJYwrhXIkkiBNIoIHAdILlgTGncWoh0NYmcGBYshRkyJA-USNXpEJymUFrPhrBNwpZvmSDM7XT7EWsNlsILH1YGENZecEfrh7M4hm5-GbQRYIgZjLz7dZwkZw6llvhReKwFKY6rCeWSQhjSYDBYrPbxiZLK4yWaLfgIZIe3P9f5rNZ+wiCAARLRgMsB6eTVuvaY9i0MjlGDfz40OKvm6KxOIu+JAA */
+    /** @xstate-layout N4IgpgJg5mDOIC5QGUAuB7AxgawHQElZYBXSAYgBUANAfWQoHkBhAaRoEEmmBRABQvYA5HgG0ADAF1EoAA7pYAS1QL0AO2kgAHogBMADgDMuAIwBWAGw7TAGhABPRGYDsuPWICce96cMG-f4wBfQNs0LDxCEnJqOkZWGiYhHgAZZPYKfAZBcSkkEDlFZTUNbQR9IzNLG3tEAx0xXHcdd3M9J1Ng0IwcXHZMTDAZVGjaemY2CgAlIWQAMW5JnI0CpRV1PNLzdyMvJydmsWNzABZjPR1bBwRz3FOt03qdY3azzpAwnr6BoZHY8YSktxUulMtlJMt5KtihtEOYnMdXGIDO4nO5DiczhcamV9K56hY-B42h03qp0BA4BoPtgIYU1iVEABacyXRy3QxuczGbnHLzeY7mN7UghEUgQWlQ9agUrHLFXfTuXBifbuI7mdUa8wGIXdPBfQbDcV5FZFKVaRCmXmNMRVVkIYzuBE6LVieq+fwGIIhd663AUABOAENVLAAGZgf3+yAS00M+1iV0mR2mZWu0wo7Z24xiUy4ZEGFMPUwp9WGHXhXBMYMDAA2NejxshsZhCE8Lj0Wy1rTExx7JztBgTeOaas16u1wUCQA */
     id: "Stock",
     initial: "Issued",
     context: {
@@ -31,7 +31,7 @@ export const stockMachine = createMachine(
       Accepted: {
         on: {
           TX_STOCK_TRANSFER: {
-            target: "Issued",
+            target: "Transferred",
             actions: ["transfer"],
           },
           TX_STOCK_CANCELLATION: {
@@ -40,20 +40,27 @@ export const stockMachine = createMachine(
           },
         },
       },
+      Transferred: {
+        type: "final",
+        entry: ["stopChildTransferred"],
+      },
       Cancelled: {
         type: "final",
-        entry: ["stopChild"],
+        entry: ["stopChildCancelled"],
       },
     },
   },
   {
     actions: {
-      // not called anywhere yet
       transfer: (context, event) => {
         console.log("Transfer Action", event);
-        const { quantity, stakeholder_id, stock_class_id } = event.value;
+        const { quantity, transferor_id, transferee_id, stock_class_id } = event;
 
-        const activeSecurityIds = context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id];
+        console.log("transferor ", transferor_id, " transferee ", transferee_id, " stock class ", stock_class_id);
+
+        const activeSecurityIds = context.activeSecurityIdsByStockClass[transferor_id][stock_class_id];
+        console.log("activeSecurityIds", activeSecurityIds);
+
         if (!activeSecurityIds || !activeSecurityIds.length) {
           console.log("cannot find active position");
           throw new Error("cannot find active position");
@@ -61,38 +68,55 @@ export const stockMachine = createMachine(
 
         let currentSum = 0;
         let securityIdsToDelete = [];
+
+        // Go through the active positions for that stock class
         for (let i = 0; i < activeSecurityIds.length; i++) {
           let security_id = activeSecurityIds[i];
-          let activePosition = context.activePositions[stakeholder_id][security_id];
+          let activePosition = context.activePositions[transferor_id][security_id];
 
+          // keep a running tally on the sum of the quantities
           currentSum += activePosition.quantity;
+          // keep track of the securities IDs used to get the right sum
           securityIdsToDelete.push(security_id);
 
           if (quantity === currentSum) {
             console.log("complete transfer");
-            delete context.activePositions[stakeholder_id][security_id];
+
             break;
           } else if (quantity < currentSum) {
             console.log("partial transfer");
+
             const remainingQuantity = currentSum - quantity;
             console.log("remainingQuantity", remainingQuantity);
-
-            for (let j = 0; j < securityIdsToDelete.length; j++) {
-              delete context.activePositions[stakeholder_id][securityIdsToDelete[j]];
-            }
-
-            // updateContext(context, {
-            //   ...event.value,
-            //   security_id: "UPDATED_SECURITY_ID",
-            //   quantity: remainingQuantity,
-            // });
             break;
           }
         }
+
+        if (quantity > currentSum) {
+          throw new Error("cannot transfer more than quantity of the active position");
+        }
+
+        context.temporarySecurityIdsToDelete = securityIdsToDelete;
+        context.remainingQuantity = quantity - currentSum;
+        context.transferee_id = transferee_id;
+
+        // return securityIdsToDelete + remainingQuantity (if partial exist)
       },
-      stopChild: sendParent((context, event) => {
+      stopChildTransferred: sendParent((context, event) => {
         return {
-          type: "STOP_CHILD",
+          type: "STOP_CHILD_FOR_TRANSFER",
+          value: {
+            security_ids: context.temporarySecurityIdsToDelete,
+            transferee_id: event.transferee_id,
+            transferor_id: event.transferor_id,
+            remainingQuantity: context.activePositions[event.transferor_id][event.security_id].quantity - event.quantity,
+            stock_class_id: context.activePositions[event.transferor_id][event.security_id].stock_class_id,
+          },
+        };
+      }),
+      stopChildCancelled: sendParent((context, event) => {
+        return {
+          type: "STOP_CHILD_FOR_CANCELLATION",
           value: {
             security_id: event.security_id,
             stakeholder_id: event.stakeholder_id,
