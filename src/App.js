@@ -2,7 +2,7 @@ import { useMachine } from "@xstate/react";
 import { useState } from "react";
 // import { parentMachine } from "./invoking/parentMachine";
 import { parentMachine } from "./spawning/parentMachine";
-import { stockAcceptanceData, stockCancellationData, stockIssuanceData } from "./transactions";
+import { stockAcceptanceData, stockCancellationData, stockIssuanceData, stockTransferData } from "./transactions";
 
 import { inspect } from "@xstate/inspect";
 
@@ -38,6 +38,16 @@ const App = () => {
     if (securityActor) {
       securityActor.send({
         type: "TX_STOCK_CANCELLATION",
+        ...eventData,
+      });
+    }
+  };
+
+  const handleTransfer = (securityId, eventData) => {
+    const securityActor = state.context.securities[securityId];
+    if (securityActor) {
+      securityActor.send({
+        type: "TX_STOCK_TRANSFER",
         ...eventData,
       });
     }
@@ -96,9 +106,24 @@ const App = () => {
           Accept
         </button>
         <button onClick={() => handleCancellation(security_id, { ...stockCancellationData, security_id, stakeholder_id, quantity })}>Cancel</button>
+        <button
+          onClick={() =>
+            handleTransfer(security_id, {
+              ...stockTransferData,
+              security_id,
+              transferor_id: stakeholder_id,
+              transferee_id: "rebecca-id-1",
+              stock_class_id,
+              quantity,
+            })
+          }
+        >
+          Transfer
+        </button>
       </div>
     </div>
   );
 };
 
 export default App;
+// ask adam for help designing some things tomorrow
