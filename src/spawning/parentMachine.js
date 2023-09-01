@@ -23,8 +23,11 @@ export const parentMachine = createMachine(
           UPDATE_CONTEXT: {
             actions: "updateParentContext",
           },
-          STOP_CHILD: {
-            actions: ["stopChild", "respawnSecurityIfNecessary"],
+          STOP_CHILD_FOR_CANCELLATION: {
+            actions: ["stopChildForCancellation", "respawnSecurityIfNecessary"],
+          },
+          STOP_CHILD_FOR_TRANSFER: {
+            actions: ["stopChildForTransfer", "createTransferee", "respawnSecurityIfNecessary"],
           },
           CHILL: {},
         },
@@ -94,6 +97,19 @@ export const parentMachine = createMachine(
           return updatedSecurityIdsByStockClass;
         },
       }),
+      createTransferee: raise((context, event) => {
+        const { tempActivePositionForTransferee } = context;
+        console.log(" create  transferee with context  ", context);
+        console.log(" create  transferee with event  ", event);
+        return {
+          type: "TX_STOCK_ISSUANCE",
+          value: {
+            ...tempActivePositionForTransferee,
+            stakeholder_id: event.transferee_id,
+            quantity: event.quantity,
+          },
+        };
+      }),
       // BUG: in the events tap of the inspector, { TX_STOCK_ISSUANCE } isn't appearing, though logic is working as expected.
       respawnSecurityIfNecessary: raise((context, event) => {
         if (!context.isRespawning) {
@@ -113,18 +129,70 @@ export const parentMachine = createMachine(
           value: temporaryActivePosition,
         };
       }),
-      stopChild: assign((context, event) => {
+      stopChildForTransfer: assign((context, event) => {
+        const { security_ids, transferor_id, remainingQuantity, quantity, stock_class_id } = event.value;
+
+        const currentActivePosition = context.activePositions[transferor_id][security_ids.at(-1)]; // the last position will be the one that has remaining quantity
+        // 1. Setup data to spawn a new child for the transferee
+        const transfereeSecurityId = uuid().toString().slice(0, 4);
+        const transfereeStakeholderId = uuid().toString().slice(0, 4);
+
+        const transfereeActivePosition = {
+          activePositions: {},
+          activeSecurityIdsByStockClass: {},
+          value: {
+            ...currentActivePosition,
+            quantity,
+            stakeholder_id: transfereeStakeholderId,
+            security_id: transfereeSecurityId,
+          },
+        };
+        context.tempActivePositionForTransferee = transfereeActivePosition;
+
+        for (const security_id of security_ids) {
+          // 2. Stop the child machine
+          stop(security_id);
+
+          // 3. delete the child machine from the context
+          delete context.securities[security_id];
+          delete context.activePositions[transferor_id][security_id];
+          delete context.activeSecurityIdsByStockClass[transferor_id][stock_class_id];
+        }
+
+        if (remainingQuantity) {
+          // 4. (if applicable), Setup data to spawn new a new child for the transferor if there's remaining quantity
+          console.log("remainingQuantity", remainingQuantity);
+          const newSecurityId = uuid().toString().slice(0, 4);
+          const newActivePosition = {
+            activePositions: {},
+            activeSecurityIdsByStockClass: {},
+            value: {
+              ...currentActivePosition,
+              quantity: remainingQuantity,
+              security_id: newSecurityId,
+            },
+          };
+
+          context.isRespawning = true;
+          context.temporaryActivePosition = newActivePosition;
+          context.temporarySecurityId = newSecurityId;
+        } else {
+          context.isRespawning = false;
+        }
+      }),
+      stopChildForCancellation: assign((context, event) => {
+        console.log("stopChildForCancellation", context, event);
         const { security_id, stakeholder_id, remainingQuantity, stock_class_id } = event.value;
 
         // 1. Stop the child machine
         stop(security_id);
 
-        const currentActivePosition = context.activePositions[stakeholder_id][security_id];
-
         // 2. delete the child machine from the context
         delete context.securities[security_id];
         delete context.activePositions[stakeholder_id][security_id];
         delete context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id];
+
+        const currentActivePosition = context.activePositions[stakeholder_id][security_id];
 
         if (remainingQuantity) {
           // 3. Spawn a new child machine if there's remaining quantity
@@ -137,7 +205,6 @@ export const parentMachine = createMachine(
               ...currentActivePosition,
               quantity: remainingQuantity,
               security_id: newSecurityId,
-              stakeholder_id,
             },
           };
 
