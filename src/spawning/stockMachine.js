@@ -53,94 +53,42 @@ export const stockMachine = createMachine(
   {
     actions: {
       transfer: (context, event) => {
-        console.log("Transfer Action", event);
-        const { quantity, transferor_id, transferee_id, stock_class_id } = event;
-
-        console.log("transferor ", transferor_id, " transferee ", transferee_id, " stock class ", stock_class_id);
-
-        const activeSecurityIds = context.activeSecurityIdsByStockClass[transferor_id][stock_class_id];
-        console.log("activeSecurityIds", activeSecurityIds);
-
-        if (!activeSecurityIds || !activeSecurityIds.length) {
-          console.log("cannot find active position");
-          throw new Error("cannot find active position");
-        }
-
-        let currentSum = 0;
-        let securityIdsToDelete = [];
-
-        // Go through the active positions for that stock class
-        for (let i = 0; i < activeSecurityIds.length; i++) {
-          let security_id = activeSecurityIds[i];
-          let activePosition = context.activePositions[transferor_id][security_id];
-
-          // keep a running tally on the sum of the quantities
-          currentSum += activePosition.quantity;
-          // keep track of the securities IDs used to get the right sum
-          securityIdsToDelete.push(security_id);
-
-          if (quantity === currentSum) {
-            console.log("complete transfer");
-
-            break;
-          } else if (quantity < currentSum) {
-            console.log("partial transfer");
-
-            const remainingQuantity = currentSum - quantity;
-            console.log("remainingQuantity", remainingQuantity);
-            break;
-          }
-        }
-
-        if (quantity > currentSum) {
-          throw new Error("cannot transfer more than quantity of the active position");
-        }
-
-        context.temporarySecurityIdsToDelete = securityIdsToDelete;
-        context.remainingQuantity = quantity - currentSum;
-        context.transferee_id = transferee_id;
-
-        // return securityIdsToDelete + remainingQuantity (if partial exist)
+        console.log("inside of transfer for child ");
+        console.log("with context ", context);
+        console.log("with event ", event);
+        // nothing triggered right now.
       },
       stopChildTransferred: sendParent((context, event) => {
+        console.log("inside of stopChildTransferred");
+        console.log("with context ", context);
+        console.log("with event ", event);
+        const { security_id, stakeholder_id, stock_class_id } = event;
         return {
           type: "STOP_CHILD_FOR_TRANSFER",
           value: {
-            security_ids: context.temporarySecurityIdsToDelete,
-            transferee_id: event.transferee_id,
-            transferor_id: event.transferor_id,
-            remainingQuantity: context.activePositions[event.transferor_id][event.security_id].quantity - event.quantity,
-            stock_class_id: context.activePositions[event.transferor_id][event.security_id].stock_class_id,
+            security_id,
+            stakeholder_id,
+            stock_class_id,
           },
         };
       }),
       stopChildCancelled: sendParent((context, event) => {
+        console.log("inside of stop child cancelled");
+        console.log("with context ", context);
+        console.log("with event ", event);
+        const { security_id, stakeholder_id, stock_class_id } = event;
         return {
-          type: "STOP_CHILD_FOR_CANCELLATION",
+          type: "STOP_CHILD_FOR_TRANSFER",
           value: {
-            security_id: event.security_id,
-            stakeholder_id: event.stakeholder_id,
-            remainingQuantity: context.activePositions[event.stakeholder_id][event.security_id].quantity - event.quantity,
-            stock_class_id: context.activePositions[event.stakeholder_id][event.security_id].stock_class_id,
+            security_id,
+            stakeholder_id,
+            stock_class_id,
           },
         };
       }),
-      cancel: (context, event, meta) => {
-        const { quantity, stakeholder_id, security_id } = event;
-
-        const activePosition = context.activePositions[stakeholder_id][security_id];
-
-        if (!activePosition) {
-          throw new Error("cannot find active position");
-        }
-
-        if (quantity === activePosition.quantity) {
-          console.log("complete cancellation");
-        } else if (quantity < activePosition.quantity) {
-          console.log("partial cancellation");
-        } else {
-          throw new Error("cannot cancel more than quantity of the active position");
-        }
+      cancel: (context, event) => {
+        console.log("inside of cancel for child");
+        console.log("with context ", context);
       },
       issue: (context, event) => updateContext(context, event.value),
       accept: (context, event) => {
@@ -168,6 +116,7 @@ export const stockMachine = createMachine(
 );
 
 const updateContext = (context, _) => {
+  console.log("context inside of updateContext ", context);
   const { stakeholder_id, stock_class_id, security_id, quantity, share_price } = context.value;
 
   //Update Active Positions
