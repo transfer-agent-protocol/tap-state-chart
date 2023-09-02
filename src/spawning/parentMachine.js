@@ -25,10 +25,10 @@ export const parentMachine = createMachine(
             actions: "updateParentContext",
           },
           STOP_CHILD_FOR_CANCELLATION: {
-            actions: ["stopChildForCancellation", "respawnSecurityIfNecessary"],
+            actions: ["stopChild", "respawnSecurityIfNecessary"],
           },
           STOP_CHILD_FOR_TRANSFER: {
-            actions: ["stopChildForTransfer"],
+            actions: ["stopChild"],
           },
           CHILL: {},
           // Only supporting one transfer, not the 1100 problem. This will be a separate helper function because we need multiple issuances and we will aggregate them
@@ -284,7 +284,7 @@ export const parentMachine = createMachine(
           },
         };
       }),
-      stopChildForTransfer: assign((context, event) => {
+      stopChild: assign((context, event) => {
         const { security_id, stakeholder_id, stock_class_id } = event.value;
 
         // delete adam entirely
@@ -294,7 +294,6 @@ export const parentMachine = createMachine(
 
         stop(security_id);
       }),
-      stopChildForCancellation: assign((context, event) => {}),
     },
   }
 );
