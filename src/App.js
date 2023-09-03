@@ -1,6 +1,5 @@
 import { useMachine } from "@xstate/react";
 import { useState } from "react";
-// import { parentMachine } from "./invoking/parentMachine";
 import { parentMachine } from "./spawning/parentMachine";
 import { stockAcceptanceData, stockCancellationData, stockIssuanceData, stockTransferData } from "./transactions";
 
@@ -10,7 +9,6 @@ inspect({
   iframe: false, // recommended setting for local development
 });
 
-// Call this before any machines are interpreted
 const App = () => {
   const [state, send] = useMachine(parentMachine, {
     devTools: true,
@@ -33,7 +31,7 @@ const App = () => {
     }
   };
 
-  const handleCancellation = (securityId, eventData) => {
+  const handleCancellation = (eventData) => {
     send({
       type: "PRE_STOCK_CANCELLATION",
       ...eventData,
@@ -85,16 +83,16 @@ const App = () => {
         <button
           onClick={() =>
             handleAcceptance(security_id, {
+              ...stockAcceptanceData,
               security_id,
               stakeholder_id,
-              ...stockAcceptanceData,
               stock_class_id,
             })
           }
         >
           Accept
         </button>
-        <button onClick={() => handleCancellation(security_id, { ...stockCancellationData, security_id, stock_class_id, stakeholder_id, quantity })}>
+        <button onClick={() => handleCancellation({ ...stockCancellationData, security_id, stock_class_id, stakeholder_id, quantity })}>
           Cancel
         </button>
         <button
