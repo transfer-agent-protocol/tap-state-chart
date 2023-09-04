@@ -26,7 +26,7 @@ export const parentMachine = createMachine(
             actions: "updateParentContext",
           },
           STOP_CHILD_FOR_CANCELLATION: {
-            actions: ["stopChild", "respawnSecurityIfNecessary"],
+            actions: ["stopChild"],
           },
           STOP_CHILD_FOR_TRANSFER: {
             actions: ["stopChild"],
