@@ -52,6 +52,21 @@ export const stockMachine = createMachine(
   },
   {
     actions: {
+      issue: (context, event) => updateContext(context, event.value),
+      accept: (context, event) => {
+        const { security_id, stakeholder_id } = event;
+        const activePosition = context.activePositions[stakeholder_id][security_id];
+        if (!activePosition) {
+          console.log("cannot find active position");
+          throw new Error("cannot find active position");
+        } else {
+          activePosition.accepted = true;
+        }
+      },
+      cancel: (context, event) => {
+        console.log("inside of cancel for child");
+        console.log("with context ", context);
+      },
       transfer: (context, event) => {
         console.log("inside of transfer for child ");
         console.log("with context ", context);
@@ -86,21 +101,6 @@ export const stockMachine = createMachine(
           },
         };
       }),
-      cancel: (context, event) => {
-        console.log("inside of cancel for child");
-        console.log("with context ", context);
-      },
-      issue: (context, event) => updateContext(context, event.value),
-      accept: (context, event) => {
-        const { security_id, stakeholder_id } = event;
-        const activePosition = context.activePositions[stakeholder_id][security_id];
-        if (!activePosition) {
-          console.log("cannot find active position");
-          throw new Error("cannot find active position");
-        } else {
-          activePosition.accepted = true;
-        }
-      },
       sendBackToParent: sendParent((context, event) => ({
         type: "UPDATE_CONTEXT",
         value: {
@@ -116,6 +116,7 @@ export const stockMachine = createMachine(
 );
 
 const updateContext = (context, _) => {
+  console.log("context  ", context);
   console.log("context inside of updateContext ", context);
   const { stakeholder_id, stock_class_id, security_id, quantity, share_price } = context.value;
 
