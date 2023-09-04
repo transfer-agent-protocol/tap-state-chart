@@ -1,7 +1,7 @@
 import { v4 as uuid } from "uuid";
 import { actions, createMachine, spawn, stop } from "xstate";
 import { stockMachine } from "./stockMachine";
-const { assign, raise, sendTo, send } = actions;
+const { assign, raise } = actions;
 
 export const parentMachine = createMachine(
   {
@@ -18,6 +18,7 @@ export const parentMachine = createMachine(
     states: {
       ready: {
         on: {
+          WAITING: {},
           TX_STOCK_ISSUANCE: {
             actions: "spawnSecurity",
           },
@@ -30,7 +31,6 @@ export const parentMachine = createMachine(
           STOP_CHILD_FOR_TRANSFER: {
             actions: ["stopChild"],
           },
-          CHILL: {},
           // Only supporting one transfer, not the 1100 problem. This will be a separate helper function because we need multiple issuances and we will aggregate them
           PRE_STOCK_TRANSFER: {
             actions: ["preTransfer", "createTransferee", "respawnSecurityIfNecessary", "createChildTransfer"],
@@ -46,7 +46,6 @@ export const parentMachine = createMachine(
     actions: {
       createChildTransfer: (context, event) => {
         const { security_id } = event;
-        // commenting this out because full transfers won't have balance security IDs
         const { balance_security_id, resulting_security_ids } = context;
 
         const securityActor = context.securities[security_id];
@@ -120,6 +119,8 @@ export const parentMachine = createMachine(
         const { quantity, transferor_id, transferee_id, security_id, stock_class_id } = event;
 
         console.log("transferor ", transferor_id, " transferee ", transferee_id, " stock class ", stock_class_id);
+
+        //TODO: check active position exists
 
         const activePosition = context.activePositions[transferor_id][security_id];
 
@@ -266,7 +267,7 @@ export const parentMachine = createMachine(
         if (!context.isRespawning) {
           delete context.isRespawning;
           console.log("no respawning necessary");
-          return { type: "CHILL" };
+          return { type: "WAITING" };
         }
         const { respawningActivePosition, respawningSecurityId } = context;
 
