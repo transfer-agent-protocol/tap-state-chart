@@ -93,7 +93,7 @@ export const stockMachine = createMachine(
         console.log("with event ", event);
         const { security_id, stakeholder_id, stock_class_id } = event;
         return {
-          type: "STOP_CHILD_FOR_TRANSFER",
+          type: "STOP_CHILD_FOR_CANCELLATION",
           value: {
             security_id,
             stakeholder_id,
