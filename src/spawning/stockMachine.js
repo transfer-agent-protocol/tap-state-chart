@@ -88,30 +88,6 @@ export const stockMachine = createMachine(
           activePosition.accepted = true;
         }
       },
-      _cancel: (context, event) => {
-        console.log("inside of cancel for child");
-        console.log("with context ", context);
-      },
-      _transfer: (context, event) => {
-        console.log("inside of transfer for child ");
-        console.log("with context ", context);
-        console.log("with event ", event);
-        // nothing triggered right now.
-      },
-      _stopChildTransferred: sendParent((context, event) => {
-        console.log("inside of stopChildTransferred");
-        console.log("with context ", context);
-        console.log("with event ", event);
-        const { security_id, stakeholder_id, stock_class_id } = event;
-        return {
-          type: "STOP_CHILD_FOR_TRANSFER",
-          value: {
-            security_id,
-            stakeholder_id,
-            stock_class_id,
-          },
-        };
-      }),
       stopChild: sendParent((context, event) => {
         console.log("inside of stop child");
         console.log("with context ", context);
