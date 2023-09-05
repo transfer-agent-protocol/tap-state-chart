@@ -31,6 +31,15 @@ const App = () => {
     }
   };
 
+  const handleRetraction= (securityId, eventData) => {
+    const securityActor = state.context.securities[securityId];
+    if (!securityActor)return
+      securityActor.send({
+        type: "TX_STOCK_RETRACTION",
+        ...eventData,
+      });
+  };
+
   const handleCancellation = (eventData) => {
     send({
       type: "PRE_STOCK_CANCELLATION",
@@ -41,6 +50,12 @@ const App = () => {
   const handleTransfer = (eventData) => {
     send({
       type: "PRE_STOCK_TRANSFER",
+      ...eventData,
+    });
+  };
+  const handleRepurchase = (eventData) => {
+    send({
+      type: "PRE_STOCK_REPURCHASE",
       ...eventData,
     });
   };
@@ -62,7 +77,7 @@ const App = () => {
         <button
           onClick={() =>
             send({
-              type: "TX_STOCK_ISSUANCE",
+              type: "PRE_STOCK_ISSUANCE",
               id: security_id,
               value: {
                 activePositions: {},
@@ -108,6 +123,30 @@ const App = () => {
           }
         >
           Transfer
+        </button>
+
+        <button onClick={() => handleRetraction(security_id, {
+              ...stockAcceptanceData,
+              security_id,
+              stakeholder_id,
+              stock_class_id,
+            })}>
+         Retract
+        </button>
+
+        <button
+          onClick={() =>
+            handleRepurchase ({
+              ...stockTransferData,
+              security_id,
+              transferor_id: "rebecca-id-1",
+              transferee_id: stakeholder_id,
+              stock_class_id,
+              quantity,
+            })
+          }
+        >
+          Repurchase
         </button>
       </div>
       <div>Context:</div>
