@@ -143,6 +143,7 @@ const App = () => {
             handleRepurchase({
               security_id,
               stakeholder_id,
+              stock_class_id,
               quantity,
             })
           }

@@ -361,18 +361,21 @@ export const parentMachine = createMachine(
         console.log({ context, event });
         const { security_id, stakeholder_id, stock_class_id } = event.value;
 
-        // delete adam entirely
         delete context.securities[security_id];
         delete context.activePositions[stakeholder_id][security_id];
-        delete context.activeSecurityIdsByStockClass[stakeholder_id][
-          stock_class_id
-        ];
+        context.activeSecurityIdsByStockClass[stakeholder_id][stock_class_id] = context.activeSecurityIdsByStockClass[
+                    stakeholder_id][stock_class_id]
+                    .filter(el => el !== security_id)
+
+
+        delete context.activeSecurityIdsByStockClass[stakeholder_id][ stock_class_id ];
 
         stop(security_id);
+        return {...context}
       }),
       preRepurchase: assign((context, event) => {
         console.log("prePurchase Action in Parent", event);
-        const { quantity, security_id, stakeholder_id } = event;
+        const { quantity, security_id, stakeholder_id, stock_class_id } = event;
 
         const activePosition =
           context.activePositions[stakeholder_id][security_id];
@@ -382,6 +385,7 @@ export const parentMachine = createMachine(
             "cannot repurchase more than quantity of the active position"
           );
         }
+                // validateActivePostionQuantity(onFullQuantity, onPartialQuantity, onLessQuantity)
         if (quantity === activePosition.quantity) {
           console.log("complete repurchase");
           context.isRespawning = false;
@@ -398,6 +402,7 @@ export const parentMachine = createMachine(
             quantity: remainingQuantity,
             security_id: spawningSecurityId,
             stakeholder_id,
+            stock_class_id
           };
 
           // respawning
