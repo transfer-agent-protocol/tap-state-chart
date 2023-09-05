@@ -20,10 +20,10 @@ export const parentMachine = createMachine(
         on: {
           WAITING: {},
           PRE_STOCK_ISSUANCE: {
-            actions: "spawnSecurity",
+            actions: ["spawnSecurity"],
           },
           UPDATE_CONTEXT: {
-            actions: "updateParentContext",
+            actions: ["updateParentContext"],
           },
           STOP_CHILD: {
             actions: ["stopChild"],
@@ -36,7 +36,7 @@ export const parentMachine = createMachine(
             actions: ["preCancel", "respawnSecurityIfNecessary", "createChildCancellation"],
           },
           PRE_STOCK_REPURCHASE: {
-            actions: ["preRepurchase", "createTransferee", "respawnSecurityIfNecessary", "createChildTransfer"],
+            actions: ["preRepurchase", "respawnSecurityIfNecessary", "createChildRepurchase"],
           },
         },
       },
@@ -44,13 +44,28 @@ export const parentMachine = createMachine(
   },
   {
     actions: {
+      createChildRepurchase: (context, event) => {
+        // create a child with remaining quantity
+        const { security_id } = event;
+        const { balance_security_id } = context;
+
+        delete context.balance_security_id;
+
+        const securityActor = context.securities[security_id];
+        securityActor.send({
+          type: "TX_STOCK_REPURCHASE",
+          security_id,
+          stakeholder_id: event.stakeholder_id,
+          stock_class_id: event.stock_class_id,
+          balance_security_id,
+        });
+      },
       createChildTransfer: (context, event) => {
         const { security_id } = event;
         const { balance_security_id, resulting_security_ids } = context;
 
         const securityActor = context.securities[security_id];
-        console.log({context, event})
-
+        console.log({ context, event });
 
         securityActor.send({
           type: "TX_STOCK_TRANSFER",
@@ -287,8 +302,8 @@ export const parentMachine = createMachine(
         };
       }),
       stopChild: assign((context, event) => {
-        console.log('inside stop child')
-        console.log({context, event})
+        console.log("inside stop child");
+        console.log({ context, event });
         const { security_id, stakeholder_id, stock_class_id } = event.value;
 
         // delete adam entirely
@@ -300,55 +315,38 @@ export const parentMachine = createMachine(
       }),
     },
     preRepurchase: assign((context, event) => {
-        console.log("prePurchase Action in Parent", event);
-        const { quantity, transferor_id, transferee_id, security_id, stock_class_id } = event;
+      console.log("prePurchase Action in Parent", event);
+      const { quantity, security_id, stakeholder_id } = event;
 
-        console.log("transferor ", transferor_id, " transferee ", transferee_id, " stock class ", stock_class_id);
+      const activePosition = context.activePositions[stakeholder_id][security_id];
 
-        //TODO: check active position exists
+      if (quantity > activePosition.quantity) {
+        throw new Error("cannot repurchase more than quantity of the active position");
+      }
+      if (quantity === activePosition.quantity) {
+        console.log("complete repurchase");
+        context.isRespawning = false;
+        context.balance_security_id = "";
+      } else if (quantity < activePosition.quantity) {
+        console.log("partial repurchase");
 
-        const activePosition = context.activePositions[transferor_id][security_id];
+        const remainingQuantity = activePosition.quantity - quantity;
 
-        if (quantity > activePosition.quantity) {
-          throw new Error("cannot transfer more than quantity of the active position");
-        }
-        if (quantity === activePosition.quantity) {
-          console.log("complete transfer");
-          context.isRespawning = false;
-          context.balance_security_id = "";
-        } else if (quantity < activePosition.quantity) {
-          console.log("partial transfer");
-
-          const remainingQuantity = activePosition.quantity - quantity;
-
-          console.log("remainingQuantity", remainingQuantity);
-          // save data to context if we get here.
-          const spawningSecurityId = uuid().toString().slice(0, 4);
-          const spawningActivePosition = {
-            ...activePosition,
-            quantity: remainingQuantity,
-            security_id: spawningSecurityId,
-            stakeholder_id: transferor_id,
-          };
-
-          // respawning
-          context.isRespawning = true;
-          context.respawningActivePosition = spawningActivePosition;
-          context.respawningSecurityId = spawningSecurityId;
-          context.balance_security_id = spawningSecurityId;
-        }
-
-        // setting up for transferee issuance.
-        const transfereeSecurityId = security_id
-        const transfereeActivePosition = {
-          // placeholder for the children since creating a new machine with context deletes the context of the children
+        console.log("remainingQuantity", remainingQuantity);
+        const spawningSecurityId = uuid().toString().slice(0, 4);
+        const spawningActivePosition = {
           ...activePosition,
-          quantity,
-          security_id: transfereeSecurityId,
+          quantity: remainingQuantity,
+          security_id: spawningSecurityId,
+          stakeholder_id,
         };
 
-        context.transfereeSecurityId = transfereeSecurityId;
-        context.transfereeActivePosition = transfereeActivePosition;
-        }),
+        // respawning
+        context.isRespawning = true;
+        context.respawningActivePosition = spawningActivePosition;
+        context.respawningSecurityId = spawningSecurityId;
+        context.balance_security_id = spawningSecurityId;
+      }
+    }),
   }
 );
