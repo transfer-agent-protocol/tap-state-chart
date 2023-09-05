@@ -31,13 +31,13 @@ const App = () => {
     }
   };
 
-  const handleRetraction= (securityId, eventData) => {
+  const handleRetraction = (securityId, eventData) => {
     const securityActor = state.context.securities[securityId];
-    if (!securityActor)return
-      securityActor.send({
-        type: "TX_STOCK_RETRACTION",
-        ...eventData,
-      });
+    if (!securityActor) return;
+    securityActor.send({
+      type: "TX_STOCK_RETRACTION",
+      ...eventData,
+    });
   };
 
   const handleCancellation = (eventData) => {
@@ -125,22 +125,24 @@ const App = () => {
           Transfer
         </button>
 
-        <button onClick={() => handleRetraction(security_id, {
+        <button
+          onClick={() =>
+            handleRetraction(security_id, {
               ...stockAcceptanceData,
               security_id,
               stakeholder_id,
               stock_class_id,
-            })}>
-         Retract
+            })
+          }
+        >
+          Retract
         </button>
 
         <button
           onClick={() =>
-            handleRepurchase ({
-              ...stockTransferData,
+            handleRepurchase({
               security_id,
-              transferor_id: "rebecca-id-1",
-              transferee_id: stakeholder_id,
+              stakeholder_id,
               stock_class_id,
               quantity,
             })
