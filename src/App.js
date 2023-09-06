@@ -1,7 +1,12 @@
 import { useMachine } from "@xstate/react";
 import { useState } from "react";
 import { parentMachine } from "./spawning/parentMachine";
-import { stockAcceptanceData, stockCancellationData, stockIssuanceData, stockTransferData } from "./transactions";
+import {
+  stockAcceptanceData,
+  stockCancellationData,
+  stockIssuanceData,
+  stockTransferData,
+} from "./transactions";
 
 import { inspect } from "@xstate/inspect";
 
@@ -65,15 +70,32 @@ const App = () => {
       <div>State of Parent: {state.value}</div>
       {Object.keys(state.context.securities).map((security) => (
         <div key={security}>
-          State of Child <b>{security}</b> : {state.children[security]?._state.value}
+          State of Child <b>{security}</b> :{" "}
+          {state.children[security]?._state.value}
         </div>
       ))}
 
       <div>
-        <input value={quantity} placeholder="quantity" onChange={(e) => setQuantity(+e.target.value)}></input>
-        <input value={security_id} placeholder="security_id" onChange={(e) => setSecurityId(e.target.value)}></input>
-        <input value={stakeholder_id} placeholder="stakeholder_id" onChange={(e) => setStakeholderId(e.target.value)}></input>
-        <input value={stock_class_id} placeholder="stock_class_id" onChange={(e) => setStockClassId(e.target.value)}></input>
+        <input
+          value={quantity}
+          placeholder="quantity"
+          onChange={(e) => setQuantity(+e.target.value)}
+        ></input>
+        <input
+          value={security_id}
+          placeholder="security_id"
+          onChange={(e) => setSecurityId(e.target.value)}
+        ></input>
+        <input
+          value={stakeholder_id}
+          placeholder="stakeholder_id"
+          onChange={(e) => setStakeholderId(e.target.value)}
+        ></input>
+        <input
+          value={stock_class_id}
+          placeholder="stock_class_id"
+          onChange={(e) => setStockClassId(e.target.value)}
+        ></input>
         <button
           onClick={() =>
             send({
@@ -107,7 +129,17 @@ const App = () => {
         >
           Accept
         </button>
-        <button onClick={() => handleCancellation({ ...stockCancellationData, security_id, stock_class_id, stakeholder_id, quantity })}>
+        <button
+          onClick={() =>
+            handleCancellation({
+              ...stockCancellationData,
+              security_id,
+              stock_class_id,
+              stakeholder_id,
+              quantity,
+            })
+          }
+        >
           Cancel
         </button>
         <button
