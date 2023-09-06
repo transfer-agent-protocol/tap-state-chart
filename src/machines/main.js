@@ -1,86 +1,19 @@
-import { mergeNestedObjects } from "../helpers";
 import { v4 as uuid } from "uuid";
+import {
+  mergeNestedObjects,
+  handleTransaction,
+  createChildTransaction,
+} from "../helpers";
 import { actions, createMachine, spawn, stop } from "xstate";
-import { stockMachine } from "./stockMachine";
+import stockMachine from "./stock";
+import stockClassMachine from "./stockClass";
+import { uniqueId } from "xstate/lib/utils";
+
 const { assign, raise } = actions;
 
-const handleTransaction = (context, event, transactionType) => {
-  const { security_id, stock_class_id, quantity } = event;
-  const stakeholder_id =
-    transactionType == "transfer"
-      ? event.transferor_id
-      : context.stakeholder_id || event.stakeholder_id;
-
-  console.log({ stakeholder_id, event });
-  const activePosition = context.activePositions[stakeholder_id][security_id];
-
-  if (quantity > activePosition.quantity) {
-    throw new Error(
-      `cannot ${transactionType} more than quantity of the active position`
-    );
-  }
-
-  if (quantity === activePosition.quantity) {
-    console.log(`complete ${transactionType}`);
-    context.isRespawning = false;
-    context.balance_security_id = "";
-  } else if (quantity < activePosition.quantity) {
-    console.log(`partial ${transactionType}`);
-
-    const remainingQuantity = activePosition.quantity - quantity;
-    console.log("remainingQuantity", remainingQuantity);
-
-    const spawningSecurityId = uuid().toString().slice(0, 4);
-    const spawningActivePosition = {
-      ...activePosition,
-      quantity: remainingQuantity,
-      security_id: spawningSecurityId,
-      stakeholder_id,
-      stock_class_id,
-    };
-
-    context.isRespawning = true;
-    context.respawningActivePosition = spawningActivePosition;
-    context.respawningSecurityId = spawningSecurityId;
-    context.balance_security_id = spawningSecurityId;
-
-    if (transactionType === "transfer") {
-      const transfereeSecurityId = uuid().toString().slice(0, 4);
-      const transfereeActivePosition = {
-        ...activePosition,
-        quantity,
-        security_id: transfereeSecurityId,
-      };
-
-      context.transfereeSecurityId = transfereeSecurityId;
-      context.transfereeActivePosition = transfereeActivePosition;
-    }
-  }
-};
-
-const createChildTransaction = (context, event, transactionType) => {
-  const { security_id } = event;
-  const securityActor = context.securities[security_id];
-  const payload = {
-    type: transactionType,
-    security_id,
-    stakeholder_id: event.stakeholder_id || event.transferor_id,
-    stock_class_id: event.stock_class_id,
-    balance_security_id: context.balance_security_id,
-  };
-
-  delete context.balance_security_id;
-  if (transactionType === "TX_STOCK_TRANSFER") {
-    payload.resulting_security_ids = context.resulting_security_ids;
-    delete context.resulting_security_ids;
-  }
-
-  securityActor.send(payload);
-};
-
-export const parentMachine = createMachine(
+const mainMachine = createMachine(
   {
-    id: "Parent",
+    id: "Main",
     initial: "ready",
     context: {
       securities: {}, // This will store references to spawned child machines
@@ -95,10 +28,13 @@ export const parentMachine = createMachine(
         on: {
           WAITING: {},
           PRE_STOCK_ISSUANCE: {
-            actions: ["spawnSecurity"],
+            actions: ["spawnSecurities"],
           },
           UPDATE_CONTEXT: {
             actions: ["updateParentContext"],
+          },
+          SPAWN_SECURITIES: {
+            actions: ["spawnSecurities"],
           },
           STOP_CHILD: {
             actions: ["stopChild"],
@@ -126,6 +62,9 @@ export const parentMachine = createMachine(
               "createChildRepurchase",
             ],
           },
+          PRE_STOCK_REISSUE: {
+            actions: ["spawnStockClass", "createChildReissue"],
+          },
         },
       },
     },
@@ -141,6 +80,9 @@ export const parentMachine = createMachine(
       createChildCancellation: (context, event) => {
         createChildTransaction(context, event, "TX_STOCK_CANCELLATION");
       },
+      createChildReissue: (context, event) => {
+        createChildTransaction(context, event.value, "TX_STOCK_REISSUE");
+      },
       preCancel: assign((context, event) => {
         handleTransaction(context, event, "cancel");
       }),
@@ -150,16 +92,53 @@ export const parentMachine = createMachine(
       preRepurchase: assign((context, event) => {
         handleTransaction(context, event, "repurchase");
       }),
-      spawnSecurity: assign((context, event) => {
-        const securityId = event.id;
-        const newSecurity = spawn(
-          stockMachine.withContext(event.value),
-          securityId
+      _preReissue: assign(
+        (
+          context,
+          { quantity, id, security_id, stakeholder_id, splitRatio }
+        ) => ({
+          ...context,
+          stockClass: id,
+          security_id,
+          quantity,
+          splitRatio,
+          stakeholder_id,
+        })
+      ),
+      spawnStockClass: assign((context, event) => {
+        const stockClass = spawn(
+          stockClassMachine.withContext(event.value),
+          event.id
         );
+        return {
+          stockClasses: {
+            ...context.stockClasses,
+            [event.id]: stockClass,
+          },
+        };
+      }),
+      spawnSecurities: assign((context, event) => {
+        console.log("inside spawnSecurities (parent)");
+        console.log({ context, event });
+
+        const numberOfNewSecurities =
+          event.value.value?.initialSharesAuthorized || 1;
+        const newSecurities = {};
+        const isSplitted = Boolean(numberOfNewSecurities !== 1);
+        for (let i = 0; i < numberOfNewSecurities; i++) {
+          const sId = isSplitted
+            ? `splitted-sec-id-${uniqueId()}`
+            : `sec-id-${uniqueId()}`;
+          event.value.value.security_id = sId;
+          newSecurities[sId] = spawn(
+            stockMachine.withContext(event.value),
+            sId
+          );
+        }
         return {
           securities: {
             ...context.securities,
-            [securityId]: newSecurity,
+            ...newSecurities,
           },
         };
       }),
@@ -236,8 +215,6 @@ export const parentMachine = createMachine(
         };
       }),
       stopChild: assign((context, event) => {
-        console.log("inside stop child");
-        console.log({ context, event });
         const { security_id, stakeholder_id, stock_class_id } = event.value;
 
         delete context.securities[security_id];
@@ -257,3 +234,4 @@ export const parentMachine = createMachine(
     },
   }
 );
+export default mainMachine;

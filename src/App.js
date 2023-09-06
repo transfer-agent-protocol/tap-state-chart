@@ -1,6 +1,7 @@
 import { useMachine } from "@xstate/react";
 import { useState } from "react";
-import { parentMachine } from "./spawning/parentMachine";
+import mainMachine from "./machines/main";
+
 import {
   stockAcceptanceData,
   stockCancellationData,
@@ -15,14 +16,18 @@ inspect({
 });
 
 const App = () => {
-  const [state, send] = useMachine(parentMachine, {
+  const [state, send] = useMachine(mainMachine, {
     devTools: true,
   });
 
-  const [quantity, setQuantity] = useState(100);
+  const [quantity, setQuantity] = useState(1);
   const [security_id, setSecurityId] = useState("sec-id-1");
   const [stakeholder_id, setStakeholderId] = useState("adam-id-1");
   const [stock_class_id, setStockClassId] = useState("common-id-1");
+  const [splitRatio, setSplitRatio] = useState({
+    numerator: 1,
+    denumerator: 2,
+  });
 
   // console.log("state", state);
 
@@ -65,6 +70,13 @@ const App = () => {
     });
   };
 
+  const handleReissue = (eventData) => {
+    send({
+      type: "PRE_STOCK_REISSUE",
+      ...eventData,
+    });
+  };
+
   return (
     <div>
       <div>State of Parent: {state.value}</div>
@@ -96,6 +108,27 @@ const App = () => {
           placeholder="stock_class_id"
           onChange={(e) => setStockClassId(e.target.value)}
         ></input>
+        <br />
+        <span>
+          Ratio:
+          <input
+            value={splitRatio.numerator}
+            placeholder="num"
+            onChange={(e) =>
+              setSplitRatio((pv) => ({ ...pv, numerator: e.target.value }))
+            }
+          ></input>
+          :
+          <input
+            value={splitRatio.denumerator}
+            placeholder="denum"
+            onChange={(e) =>
+              setSplitRatio((pv) => ({ ...pv, denumerator: e.target.value }))
+            }
+          ></input>
+        </span>
+        <br />
+        <br />
         <button
           onClick={() =>
             send({
@@ -181,6 +214,22 @@ const App = () => {
           }
         >
           Repurchase
+        </button>
+        <button
+          onClick={() =>
+            handleReissue({
+              id: stock_class_id,
+              value: {
+                security_id,
+                stakeholder_id,
+                stock_class_id,
+                quantity,
+                splitRatio,
+              },
+            })
+          }
+        >
+          Reissue
         </button>
       </div>
       <div>Context:</div>
