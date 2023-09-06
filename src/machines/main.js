@@ -63,7 +63,7 @@ const mainMachine = createMachine(
             ],
           },
           PRE_STOCK_REISSUE: {
-            actions: ["spawnStockClass", "createChildReissue"],
+            actions: ["spawnStockClass"],
           },
         },
       },
@@ -80,7 +80,7 @@ const mainMachine = createMachine(
       createChildCancellation: (context, event) => {
         createChildTransaction(context, event, "TX_STOCK_CANCELLATION");
       },
-      createChildReissue: (context, event) => {
+      _createChildReissue: (context, event) => {
         createChildTransaction(context, event.value, "TX_STOCK_REISSUE");
       },
       preCancel: assign((context, event) => {
@@ -125,6 +125,7 @@ const mainMachine = createMachine(
           event.value.value?.initialSharesAuthorized || 1;
         const newSecurities = {};
         const isSplitted = Boolean(numberOfNewSecurities !== 1);
+        const splittedSecurityId = event.value.value.security_id;
         for (let i = 0; i < numberOfNewSecurities; i++) {
           const sId = isSplitted
             ? `splitted-sec-id-${uniqueId()}`
@@ -135,6 +136,20 @@ const mainMachine = createMachine(
             sId
           );
         }
+
+        if (
+          context.activePositions[event.value.value.stakeholder_id] &&
+          context.activePositions[event.value.value.stakeholder_id][
+            splittedSecurityId
+          ] &&
+          event.type == "SPAWN_SECURITIES"
+        ) {
+          console.log("updating resuting security_id", event);
+          context.activePositions[event.value.value.stakeholder_id][
+            splittedSecurityId
+          ].resulting_security_ids = Object.keys(newSecurities);
+        }
+
         return {
           securities: {
             ...context.securities,

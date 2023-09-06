@@ -38,24 +38,24 @@ const stockClassMachine = createMachine(
         const ratio = numerator / denumerator;
         context.pricePerShare = context.quantity * ratio;
         context.initialSharesAuthorized = denumerator;
-        context.quantity = denumerator
+        context.quantity = denumerator;
 
         delete context.splitRatio;
-        return {...context}
+        return { ...context };
       }),
       spawnSecurities: sendParent((context, event) => {
         console.log("inside spawnSecurities (stockclass)");
-        console.log({ context});
-        console.log({ event});
+        console.log({ context });
+        console.log({ event });
         return {
           type: "SPAWN_SECURITIES",
           value: {
-                          securities: {}, // This will store references to spawned child machines
-                          activePositions: {},
-                          activeSecurityIdsByStockClass: {},
-                          transactions: [],
-                        value:{ ...context }
-                },
+            securities: {}, // This will store references to spawned child machines
+            activePositions: {},
+            activeSecurityIdsByStockClass: {},
+            transactions: [],
+            value: { ...context },
+          },
         };
       }),
 
